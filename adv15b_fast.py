@@ -42,6 +42,7 @@ class Intervals():
         return False
 
     def covers(self):
+        self.clip()
         if len(self.parts) == 1:
             return False  # assume it is not on border
         if len(self.parts) > 2 or len(self.parts) == 0:
@@ -57,22 +58,21 @@ class Intervals():
         low_i = -1
         high_i = -1
         for i, p in enumerate(self.parts):
-            if low < p[0]:
-                low_inside = False
-                low_i = i
-                break
-            elif low <= p[1]+1:
-                low_inside = True
-                low_i = i
-                break
-        for i, p in enumerate(self.parts):
-            if high < p[0]-1:
-                high_inside = False
-                high_i = i
-                break
-            elif high <= p[1]:
-                high_inside = True
-                high_i = i
+            if low_i == -1:
+                if low_i == -1 and low < p[0]:
+                    low_inside = False
+                    low_i = i
+                elif low_i == -1 and low <= p[1]+1:
+                    low_inside = True
+                    low_i = i
+            if high_i == -1:
+                if high < p[0]-1:
+                    high_inside = False
+                    high_i = i
+                elif high <= p[1]:
+                    high_inside = True
+                    high_i = i
+            if low_i != -1 and high_i != -1:
                 break
         if low_i == -1:
             self.parts.append((low, high))
@@ -87,18 +87,31 @@ class Intervals():
         low = min(low, self.parts[low_i][0])
         if high_inside:
             high = self.parts[high_i][1]
-        new_parts = [
-            p
-            for p in self.parts
-            if p[1] < low
-        ]
-        new_parts.append((low, high))
-        new_parts += [
-            p
-            for p in self.parts
-            if p[0] > high
-        ]
-        self.parts = new_parts
+
+        self.parts.insert(low_i, (low, high))
+        i = low_i+1
+        while i < len(self.parts) and self.parts[i][1] <= high:
+            del self.parts[i]
+
+    def clip(self):
+        if not self.parts:
+            return
+        i = 0
+        while True:
+            if self.parts[i][1] < 0:
+                del self.parts[i]
+                continue
+            if self.parts[i][0] < 0:
+                self.parts[i] = (0, self.parts[i][1])
+            break
+        i = -1
+        while True:
+            if self.parts[i][0] > maxx:
+                del self.parts[i]
+                continue
+            if self.parts[i][1] > maxx:
+                self.parts[i] = (self.parts[i][0], maxx)
+            break
 
 
 def inspect_line(linenum):
@@ -111,9 +124,10 @@ def inspect_line(linenum):
     for c in close:
         s, d = sensors[c], distances[c]
         r = ldist[c]
-        start = max(0, s[1]-r)
-        end = min(maxy, s[1]+r)
-        line.add(start, end)
+        # start = max(0, s[1]-r)
+        # end = min(maxy, s[1]+r)
+        # line.add(start, end)
+        line.add(s[1]-r, s[1]+r)
 
     if line.covers():
         return line.value()
