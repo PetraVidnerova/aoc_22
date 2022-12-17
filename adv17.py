@@ -116,3 +116,4 @@ for i in range(2022):
             break
 
 print(ymax)
+draw(tower, [])
