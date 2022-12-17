@@ -70,7 +70,7 @@ with open("input17.txt") as f:
 tower = set()
 j = 0
 
-for i in range(1000000000000):
+for i in range(2022):
     #    draw(tower, [])
     x = 2
     y = ymax + 3
