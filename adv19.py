@@ -1,3 +1,4 @@
+from multiprocessing import Pool
 import time
 from copy import deepcopy
 
@@ -45,6 +46,7 @@ class Factory():
         for key, count in self.robots.items():
             self.supply[key] += count
 
+        
     def buy_robot(self, material):
         cost = self.costs[material]
         for key, value in cost.items():
@@ -64,11 +66,6 @@ class Factory():
                 possible_robots.append(robot)
         return possible_robots
 
-    #     for key, count in self.costs.items():
-    #         if self.supply[key] >= self.costs[key]:
-    #             amount = self.supply[key]
-    #             self.supply[key] = amount % self.costs[key]
-    #             self.robots[key+1] += amount // self.costs[key]
 
     def possible_max(self):
         maximum = self.supply[GEODE]
@@ -124,9 +121,21 @@ def shortest(factory):
 
     return result_factory
 
+def simulate_naive(costs):
+    factory = Factory(robots, costs)
+    while factory.t < 24:
+        robot_to_buy = None
+        possible = factory.possible_robots()
+        if possible:
+            robot_to_buy = possible[-1]
+        factory.tick()
+        if robot_to_buy is not None:
+            factory.buy_robot(robot_to_buy)
+    return factory.supply[GEODE]
 
-def run_factory(costs):
+def run_factory(input_tuple):
 
+    bluenumber, costs = input_tuple 
     # factory = Factory(robots, costs)
     # factory.display()
     # new_factory = shortest(factory)
@@ -135,7 +144,7 @@ def run_factory(costs):
     states = []
     initial_factory = Factory(robots, costs)
     states.append(initial_factory)
-    maximum = 5
+    maximum = 0
 
     iter = 0
 
@@ -143,7 +152,8 @@ def run_factory(costs):
 
     while states:
         iter += 1
-        print(len(states), maximum, (time.time() - start) // 60)
+        if iter % 10000 == 0:
+            print(bluenumber, len(states), maximum, (time.time() - start) // 60)
         factory = states.pop(-1)
         #        factory.display()
         if factory.t == 24:
@@ -181,7 +191,7 @@ def run_factory(costs):
 
 blueprints = []
 
-with open("input19t.txt") as f:
+with open("input19.txt") as f:
     for line in f:
         line = line.strip()
         costs = {
@@ -206,11 +216,11 @@ with open("input19t.txt") as f:
 print(blueprints)
 
 result = 0
-for i, costs in enumerate(blueprints):
-    if i == 0:
-        continue
-    geodes = run_factory(costs)
-    print(geodes)
-    result += geodes*(i+1)
+with Pool(30) as pool:
+    geodes = pool.map(run_factory, enumerate(blueprints))
+
+    for i, gds in enumerate(geodes):
+        print(gds)
+        result += gds*(i+1)
 
 print(result)
