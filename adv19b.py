@@ -1,0 +1,245 @@
+import pickle
+from multiprocessing import Pool
+import time
+from copy import deepcopy
+
+ORE = 0
+CLAY = 1
+OBSIDIAN = 2
+GEODE = 3
+
+dictionary = {
+    "ore": ORE,
+    "clay": CLAY,
+    "obsidian": OBSIDIAN,
+    "geode": GEODE
+}
+
+
+robots = {
+    ORE: 1,
+    CLAY: 0,
+    OBSIDIAN: 0,
+    GEODE: 0
+}
+
+
+class Factory():
+    def __init__(self, robots, costs, supply=None):
+        self.t = 0
+        self.robots = robots.copy()
+        if supply is not None:
+            self.supply = supply.copy()
+        else:
+            self.supply = {
+                ORE: 0,
+                CLAY: 0,
+                OBSIDIAN: 0,
+                GEODE: 0
+            }
+        self.costs = costs.copy()
+
+    def get_geode(self):
+        return self.supply[GEODE]
+
+    def tick(self):
+        self.t += 1
+        for key, count in self.robots.items():
+            self.supply[key] += count
+
+        
+    def buy_robot(self, material):
+        cost = self.costs[material]
+        for key, value in cost.items():
+            self.supply[key] -= value
+        self.robots[material] += 1
+
+    def possible_robots(self):
+        possible_robots = []
+        for robot in ORE, CLAY, OBSIDIAN, GEODE:
+            cost = self.costs[robot]
+            have_all = True
+            for material in cost:
+                if cost[material] > self.supply[material]:
+                    have_all = False
+                    break
+            if have_all:
+                possible_robots.append(robot)
+        return possible_robots
+
+
+    def possible_max(self):
+        maximum = self.supply[GEODE]
+        time_left = 32-self.t
+        for i in range(time_left):
+            maximum += self.robots[GEODE]+i
+        return maximum
+
+    def possible_shortest(self):
+        count = 0
+        time_left = 32 - self.t
+
+        for material, value in self.costs[GEODE].items():
+            count = max(
+                count, (value - self.supply[material]+1) // (self.robots[material]+time_left+1))
+
+        return count
+
+    def display(self):
+        print(self.t, self.robots, self.supply)
+
+
+def shortest(factory):
+
+    states = []
+    states.append(factory)
+
+    shortest = 33
+    result_factory = None
+
+    while states:
+        print(shortest)
+        factory = states.pop(-1)
+        if factory.t == 32:
+            continue
+        if GEODE in factory.possible_robots():
+            if factory.t < shortest:
+                shortest = factory.t
+                result_factory = factory
+            continue
+
+        new_factory = deepcopy(factory)
+        new_factory.tick()
+        if new_factory.possible_shortest() < shortest:
+            states.append(new_factory)
+
+        for robot in factory.possible_robots():
+            new_factory = deepcopy(factory)
+            new_factory.tick()
+            new_factory.buy_robot(robot)
+            if new_factory.possible_shortest() < shortest:
+                states.append(new_factory)
+
+    return result_factory
+
+def simulate_naive(costs):
+    factory = Factory(robots, costs)
+    while factory.t < 32:
+        robot_to_buy = None
+        possible = factory.possible_robots()
+        if possible:
+            robot_to_buy = possible[-1]
+        factory.tick()
+        if robot_to_buy is not None:
+            factory.buy_robot(robot_to_buy)
+    return factory.supply[GEODE]
+
+
+def run_factory(input_tuple):
+
+    maxims = {
+        0: 33,
+        1: 5,
+        2: 25
+    }
+    
+    bluenumber, costs = input_tuple 
+    # factory = Factory(robots, costs)
+    # factory.display()
+    # new_factory = shortest(factory)
+
+    #    factory.display()
+    with open(f'blue{bluenumber}.pickle', 'rb') as f:
+        states = pickle.load(f)[bluenumber]
+        
+#    states = []
+    # initial_factory = Factory(robots, costs)
+    # states.append(initial_factory)
+    maximum = max(
+        maxims[bluenumber],
+        simulate_naive(costs)
+    )
+
+    iter = 0
+
+    start = time.time()
+
+    while states:
+        iter += 1
+        if iter % 100000 == 0:
+            print(bluenumber, len(states), maximum, (time.time() - start) // 60, flush=True)
+        if iter % 1000000 == 0:
+            save_dict = {bluenumber: states}
+            with open(f'blue{bluenumber}.pickle', 'wb') as f:
+                pickle.dump(save_dict, f)
+
+        factory = states.pop(-1)
+        #        factory.display()
+        if factory.t == 32:
+            geodes = factory.get_geode()
+            if geodes > maximum:
+                maximum = geodes
+            continue
+
+        possible_bots = factory.possible_robots()
+        new_factory = deepcopy(factory)
+        new_factory.tick()
+        if factory.possible_max() > maximum:
+            states.append(new_factory)
+
+        # if GEODE in possible_bots:
+        #     bot_to_buy = GEODE
+        # elif OBSIDIAN in possible_bots:
+        #     bot_to_buy = OBSIDIAN
+        # elif CLAY in possible_bots:
+        #     bot_to_buy = CLAY
+        # elif ORE in possible_bots:
+        #     bot_to_buy = ORE
+        # else:
+        #     bot_to_buy = None
+        # if bot_to_buy is not None:
+        for bot_to_buy in possible_bots:
+            new_factory = deepcopy(factory)
+            new_factory.tick()
+            new_factory.buy_robot(bot_to_buy)
+            if new_factory.possible_max() > maximum:
+                states.append(new_factory)
+
+    return maximum
+
+
+blueprints = []
+
+with open("input19.txt") as f:
+    for line in f:
+        line = line.strip()
+        costs = {
+        }
+        line = line.split(":")[1]
+        parts = line.split(".")
+        for part in parts:
+            if part:
+                words = part.split()
+                what = words[1]
+                cost = {}
+                price = " ".join(words[4:])
+                what = dictionary[what]
+                for c in price.split("and"):
+                    c = c.strip()
+                    number, material = c.split(" ")
+                    material = dictionary[material]
+                    cost[material] = int(number)
+                costs[what] = cost
+        blueprints.append(costs)
+
+print(blueprints)
+
+result = 1
+with Pool(3) as pool:
+    geodes = pool.map(run_factory, enumerate(blueprints[:3]))
+
+    for i, gds in enumerate(geodes):
+        print(gds)
+        result *= gds
+
+print(result)
